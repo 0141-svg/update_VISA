@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ざいりゅうきかん こうしん しんせい（ビザこうしん）</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: #ffffff;
+            height: 100vh;
+            max-height: 800px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        header {
+            background-color: #1a73e8;
+            color: white;
+            padding: 16px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        header ruby {
+            font-size: 0.9rem;
+            display: block;
+            margin-top: 4px;
+            opacity: 0.9;
+        }
+        .chat-box {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #f8f9fa;
+        }
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 1rem;
+            line-height: 1.5;
+            word-break: break-all;
+        }
+        .message.bot {
+            background: white;
+            color: #333;
+            align-self: flex-start;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+        .message.user {
+            background: #1a73e8;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        ruby rt {
+            font-size: 0.65em;
+            color: #555;
+        }
+        .bot ruby rt {
+            color: #666;
+        }
+        .user ruby rt {
+            color: #d0e1fd;
+        }
+        .input-area {
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 8px;
+        }
+        input, select {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+        }
+        input:focus, select:focus {
+            border-color: #1a73e8;
+        }
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 0 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1557b0;
+        }
+        .back-btn {
+            background-color: #ffffff;
+            color: #1a73e8;
+            border: 1px solid #1a73e8;
+            padding: 0 12px;
+            white-space: nowrap;
+        }
+        .back-btn:hover {
+            background-color: #e8f0fe;
+        }
+        .progress-wrap {
+            padding: 10px 16px 6px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: #333;
+            margin-bottom: 6px;
+        }
+        .progress-text strong {
+            color: #1a73e8;
+        }
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: #1a73e8;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .status-msg {
+            font-size: 0.85rem;
+            color: #666;
+            text-align: center;
+            padding: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        ざいりゅうきかん こうしん しんせい
+        <ruby>在留期間更新申請</ruby>
+    </header>
+    
+    <div class="progress-wrap">
+        <div class="progress-text">
+            <span id="progressCount">1 / 50 もんめ</span>
+            <span>のこり <strong id="progressRemain">50</strong> もん</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+    <div id="status" class="status-msg">いちじほぞん（一時保存）が 有効です</div>
+    <div class="chat-box" id="chatBox"></div>
+
+    <div class="input-area" id="inputArea">
+        <input type="text" id="userInput" placeholder="ここに こたえを 入力してください..." autofocus>
+        <button id="sendBtn" onclick="handleSend()">送信</button>
+    </div>
+</div>
+
+<script>
+    // 質問リスト
+    const questions = [
+        // 1. 基本情報
+        { key: "studentId", label: "<ruby>学籍番号<rt>がくせきばんごう</rt></ruby>か<ruby>受験番号<rt>じゅけんばんごう</rt></ruby>を 教えて ください。<br><small>れい: 2784001</small>" },
+        { key: "nationality", label: "<ruby>国籍<rt>こくせき</rt></ruby>・<ruby>地域<rt>ちいき</rt></ruby>（どこの <ruby>国<rt>くに</rt></ruby>ですか？）を 教えて ください。<br><small>れい: ベトナム、中国、ネパール など</small>" },
+        { key: "birthYear", label: "<ruby>生年月日<rt>せいねんがっぴ</rt></ruby>（生まれた【年】）を 数字だけで教えて ください。<br><small>れい: 2000</small>" },
+        { key: "birthMonth", label: "<ruby>生年月日<rt>せいねんがっぴ</rt></ruby>（生まれた【月】）を 数字だけで教えて ください。<br><small>れい: 4</small>" },
+        { key: "birthDay", label: "<ruby>生年月日<rt>せいねんがっぴ</rt></ruby>（生まれた【日】）を 数字だけで教えて ください。<br><small>れい: 15</small>" },
+        { key: "nameEn", label: "あなたの お<ruby>名前<rt>なまえ</rt></ruby>（アルファベット）を 教えて ください。<br><small>れい: TANAKA TARO</small>" },
+        { key: "nameKanji", label: "お<ruby>名前<rt>なまえ</rt></ruby>の <ruby>漢字<rt>かんじ</rt></ruby>表記（かんじで 書く 名前）が あれば 教えて ください。<br><small>れい: 王 小明（ない場合は「なし」）</small>" },
+        { key: "homeAddress", label: "<ruby>母国<rt>ぼこく</rt></ruby>（自分の国）の <ruby>住所<rt>じゅうしょ</rt></ruby>を 教えて ください。" },
+        { key: "japanAddress", label: "<ruby>日本<rt>にほん</rt></ruby>での <ruby>住所<rt>じゅうしょ</rt></ruby>（いま住んでいる場所）を 教えて ください。" },
+        { key: "phone", label: "あなたの <ruby>電話番号<rt>でんわばんごう</rt></ruby>を 教えて ください。" },
+        
+        // 2. パスポート・ビザ情報
+        { key: "passportNo", label: "パスポートの <ruby>番号<rt>ばんごう</rt></ruby>（旅券番号）を 教えて ください。" },
+        { key: "passportExpYear", label: "パスポートの <ruby>有効期限<rt>ゆうこうきげん</rt></ruby>（おわる【年】）を 数字だけで教えて ください。<br><small>れい: 2030</small>" },
+        { key: "passportExpMonth", label: "パスポートの <ruby>有効期限<rt>ゆうこうきげん</rt></ruby>（おわる【月】）を 数字だけで教えて ください。<br><small>れい: 12</small>" },
+        { key: "passportExpDay", label: "パスポートの <ruby>有効期限<rt>ゆうこうきげん</rt></ruby>（おわる【日】）を 数字だけで教えて ください。<br><small>れい: 31</small>" },
+        { key: "currentVisaType", label: "いまの ビザ（<ruby>在留資格<rt>ざいりゅうしかく</rt></ruby>）の <ruby>種類<rt>しゅるい</rt></ruby>を えらんで ください。", type: "select", options: ["留学", "家族滞在", "特別活動", "その他"] },
+        { key: "currentVisaTypeOther", label: "「その他」を えらんだかたは、いまの ビザの <ruby>名前<rt>なまえ</rt></ruby>を 書いて ください。<br><small>※「その他」以外をえらんだかたは「なし」と入力してください</small>" },
+        { key: "currentVisaPeriod", label: "いまの ビザの <ruby>在留期間<rt>ざいりゅうきかん</rt></ruby>を 教えて ください。<br><small>れい: 1年3月、2年3月</small>" },
+        { key: "visaExpYear", label: "いまの ビザが おわる日（<ruby>満了日<rt>まんりょうび</rt></ruby>の【年】）を 数字だけで教えて ください。<br><small>れい: 2028</small>" },
+        { key: "visaExpMonth", label: "いまの ビザが おわる日（<ruby>満了日<rt>まんりょうび</rt></ruby>の【月】）を 数字だけで教えて ください。<br><small>れい: 3</small>" },
+        { key: "visaExpDay", label: "いまの ビザが おわる日（<ruby>満了日<rt>まんりょうび</rt></ruby>の【日】）を 数字だけで教えて ください。<br><small>れい: 31</small>" },
+        { key: "cardNo", label: "いま 持っている <ruby>在留<rt>ざいりゅう</rt></ruby>カードの <ruby>番号<rt>ばんごう</rt></ruby>を 教えて ください。<br><small>れい: AB12345678CD</small>" },
+        { key: "desiredPeriod", label: "<ruby>希望<rt>きぼう</rt></ruby>する <ruby>在留期間<rt>ざいりゅうきかん</rt></ruby>（これから 卒業までの期間）を えらんで ください。", type: "select", options: ["2年", "1年"] },
+        
+        // 3. 過去の経歴・家族
+        { key: "criminalRecord", label: "これまでに 犯罪（はんざい）を したことは ありますか？<br><small>「なし」または「ある（理由もかく）」を書いてください</small>" },
+        { key: "hasFamilyInJapan", label: "<ruby>日本<rt>にほん</rt></ruby>に <ruby>家族<rt>かぞく</rt></ruby>は いますか？", type: "select", options: ["いいえ（いない）", "はい（いる）"] },
+        { key: "familyDetails", label: "日本に 家族がいる場合、その人の【続柄（関係）・名前・生年月日・国籍・学校または仕事先・在留カード番号】を 教えて ください。<br><small>※いない場合は「なし」と入力してください</small>" },
+        
+        // 4. 学歴・日本語能力
+        { key: "schoolYearsHome", label: "<ruby>母国<rt>ぼこく</rt></ruby>での <ruby>通学年数<rt>つうがくねんすう</rt></ruby>（小学校から合計で何年間 学校に通いましたか？）<br><small>れい: 12年、16年 など</small>" },
+        { key: "lastSchoolTypeHome", label: "<ruby>母国<rt>ぼこく</rt></ruby>で さいごに 卒業した 学校の <ruby>種類<rt>しゅるい</rt></ruby>を えらんで ください。", type: "select", options: ["高等学校", "専門学校", "短期大学", "大学", "その他"] },
+        { key: "lastSchoolNameHome", label: "<ruby>母国<rt>ぼこく</rt></ruby>で さいごに 卒業した 学校の <ruby>名前<rt>なまえ</rt></ruby>を 教えて ください。" },
+        { key: "gradYearHome", label: "その 学校を 卒業した【年月】を 教えて ください。<br><small>れい: 2022年8月</small>" },
+        { key: "japaneseSkill", label: "<ruby>日本語能力<rt>にほんごのうりょく</rt></ruby>の 資格（しかく・テスト）は ありますか？<br><small>れい: JLPT N2、JPT 500点、なし など</small>" },
+        { key: "jpSchoolName", label: "いま通っている（または通っていた）<ruby>日本語学校<rt>にほんごがっこう</rt></ruby>の <ruby>名前<rt>なまえ</rt></ruby>を 教えて ください。" },
+        { key: "jpSchoolPeriod", label: "<ruby>日本語学校<rt>にほんごがっこう</rt></ruby>の 入学（はいった日）から 卒業（でる日）までを 教えて ください。<br><small>れい: 2023年4月 ～ 2025年3月</small>" },
+        
+        // 5. 生活費・経費支弁
+        { key: "livingExpenseSelf", label: "1か月の <ruby>生活費<rt>せいかつひ</rt></ruby>（自分で 支払う お金）は いくらですか？<br><small>れい: 80,000円</small>" },
+        { key: "livingExpenseSupport", label: "1か月の <ruby>生活費<rt>せいかつひ</rt></ruby>（仕送り：母国や家族から もらう お金）は いくらですか？<br><small>れい: 50,000円（ない場合は 0円）</small>" },
+        { key: "moneyBrought", label: "まえの ビザを もらってから、<ruby>母国<rt>ぼこく</rt></ruby>から 持ってきた お金は いくらですか？<br><small>れい: 300,000円（ない場合は 0円）</small>" },
+        { key: "moneySent", label: "まえの ビザを もらってから、<ruby>母国<rt>ぼこく</rt></ruby>から 送ってもらった お金は いくらですか？<br><small>れい: 500,000円（ない場合は 0円）</small>" },
+        
+        // 6. 経費支弁者（お金を出してくれる人）
+        { key: "sponsorName", label: "<ruby>母国<rt>ぼこく</rt></ruby>で あなたのために お金を かせいでいる（払ってくれる）人の <ruby>名前<rt>なまえ</rt></ruby>を 教えて ください。" },
+        { key: "sponsorAddress", label: "その人（お金を払ってくれる人）の <ruby>住所<rt>じゅうしょ</rt></ruby>を 教えて ください。" },
+        { key: "sponsorPhone", label: "その人（お金を払ってくれる人）の <ruby>電話番号<rt>でんわばんごう</rt></ruby>を 教えて ください。" },
+        { key: "sponsorJob", label: "その人（お金を払ってくれる人）の <ruby>仕事<rt>しごと</rt></ruby>を 教えて ください。" },
+        { key: "sponsorCompanyPhone", label: "その人（お金を払ってくれる人）の <ruby>会社<rt>かいしゃ</rt></ruby>の <ruby>電話番号<rt>でんわばんごう</rt></ruby>を 教えて ください。<br><small>※農業などで会社番号がない場合は「なし」と書いてください</small>" },
+        { key: "sponsorIncome", label: "その人（お金を払ってくれる人）の 1年間の <ruby>収入<rt>しゅうにゅう</rt></ruby>（年収）を 教えて ください。<br><small>れい: 1,500,000円</small>" },
+        { key: "sponsorRelation", label: "その人と あなたの <ruby>関係<rt>かんけい</rt></ruby>を えらんで ください。", type: "select", options: ["父", "母", "夫", "妻", "祖父", "祖母", "養父", "養母", "兄弟姉妹", "その他"] },
+        
+        // 7. アルバイト・将来の予定
+        { key: "parttimeJobDetail", label: "いまの アルバイトの <ruby>仕事内容<rt>しごとないよう</rt></ruby>を 教えて ください。<br><small>れい: レストランでの調理・接客、清掃 など（やっていない場合は「なし」）</small>" },
+        { key: "parttimeCompanyName", label: "いまの アルバイト先の <ruby>会社名<rt>かいしゃめい</rt></ruby>（お店の名前）を 教えて ください。<br><small>※やっていない場合は「なし」</small>" },
+        { key: "parttimeAdress", label: "いまの アルバイト先の <ruby>住所<rt>じゅうしょ</rt></ruby>を 教えて ください。<br><small>※やっていない場合は「なし」</small>" },
+        { key: "parttimePhone", label: "いまの アルバイト先の <ruby>電話番号<rt>でんわばんごう</rt></ruby>を 教えて ください。<br><small>※やっていない場合は「なし」</small>" },
+        { key: "parttimeHoursWeek", label: "いまの アルバイトは 1週間（いっしゅうかん）に 何時間 はたらいていますか？<br><small>れい: 28時間（やっていない場合は 0時間）</small>" },
+        { key: "parttimeIncomeMonth", label: "いまの アルバイトの 1か月の <ruby>給料<rt>きゅうりょう</rt></ruby>（月収）は いくらですか？<br><small>れい: 90,000円（やっていない場合は 0円）</small>" },
+        { key: "futurePlan", label: "卒業したあとの <ruby>予定<rt>よてい</rt></ruby>（進路）を えらんで ください。", type: "select", options: ["就職", "進学", "帰国", "その他"] }
+    ];
+
+    let currentStep = 0;
+    let formData = {};
+
+    // データの読み込み（一時保存の復元）
+    window.onload = function() {
+        const savedData = localStorage.getItem('visa_form_data');
+        const savedStep = localStorage.getItem('visa_form_step');
+        
+        if (savedData && savedStep) {
+            if (confirm("前回のつづきから はじめますか？")) {
+                formData = JSON.parse(savedData);
+                currentStep = parseInt(savedStep, 10);
+            }
+        }
+        showCurrentQuestion();
+    };
+
+    // メッセージを追加する（step = 何問目のメッセージか。戻るときに使う）
+    function appendMessage(text, sender, step) {
+        const chatBox = document.getElementById('chatBox');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${sender}`;
+        msgDiv.innerHTML = text;
+        if (step !== undefined) msgDiv.dataset.step = step;
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 入力した文字を そのまま表示するために、HTMLの記号を無害にする
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // 残りの質問数を表示する
+    function updateProgress() {
+        const total = questions.length;
+        const answered = Math.min(currentStep, total);
+        const remain = total - answered;
+
+        if (answered < total) {
+            document.getElementById('progressCount').innerText = (answered + 1) + " / " + total + " もんめ";
+        } else {
+            document.getElementById('progressCount').innerText = total + " / " + total + " おわり";
+        }
+        document.getElementById('progressRemain').innerText = remain;
+        document.getElementById('progressFill').style.width = (answered / total * 100) + "%";
+    }
+
+    let isBusy = false; // つぎの質問を出すまでの間は ボタンを 受け付けない
+
+    function showCurrentQuestion() {
+        isBusy = false;
+        updateProgress();
+        if (currentStep < questions.length) {
+            appendMessage(questions[currentStep].label, 'bot', currentStep);
+            setupInputType();
+        } else {
+            finishChat();
+        }
+    }
+
+    // prevValue: 戻ったときに、まえの こたえを 入れておく
+    function setupInputType(prevValue) {
+        const inputArea = document.getElementById('inputArea');
+        const q = questions[currentStep];
+        const backBtn = currentStep > 0
+            ? `<button type="button" class="back-btn" onclick="goBack()">← もどる</button>`
+            : "";
+
+        if (q.type === 'select') {
+            inputArea.innerHTML = `
+                ${backBtn}
+                <select id="userSelect">
+                    ${q.options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                </select>
+                <button onclick="handleSelectSend()">つぎへ</button>
+            `;
+            if (prevValue !== undefined) document.getElementById('userSelect').value = prevValue;
+        } else {
+            inputArea.innerHTML = `
+                ${backBtn}
+                <input type="text" id="userInput" placeholder="ここに こたえを 入力..." autofocus onkeypress="if(event.key==='Enter')handleSend()">
+                <button onclick="handleSend()">送信</button>
+            `;
+            const input = document.getElementById('userInput');
+            if (prevValue !== undefined) input.value = prevValue;
+            input.focus();
+        }
+    }
+
+    function handleSend() {
+        if (isBusy) return;
+        const input = document.getElementById('userInput');
+        if (!input || !input.value.trim()) return;
+        
+        const val = input.value.trim();
+        appendMessage(escapeHtml(val), 'user', currentStep);
+        
+        saveAnswer(val);
+    }
+
+    function handleSelectSend() {
+        if (isBusy) return;
+        const select = document.getElementById('userSelect');
+        if (!select) return;
+        
+        const val = select.value;
+        appendMessage(escapeHtml(val), 'user', currentStep);
+        
+        saveAnswer(val);
+    }
+
+    function saveAnswer(val) {
+        isBusy = true;
+        const q = questions[currentStep];
+        formData[q.key] = val;
+        currentStep++;
+
+        saveProgress();
+
+        // つぎの質問へ
+        setTimeout(showCurrentQuestion, 400);
+    }
+
+    // 一時保存（LocalStorageに保存）
+    function saveProgress() {
+        localStorage.setItem('visa_form_data', JSON.stringify(formData));
+        localStorage.setItem('visa_form_step', currentStep);
+    }
+
+    // 1つまえの質問に もどる
+    function goBack() {
+        if (isBusy || currentStep <= 0) return;
+        const target = currentStep - 1;
+
+        // いまの質問と、まえの質問への こたえを 画面から消す
+        document.querySelectorAll('#chatBox .message').forEach(function(el) {
+            if (el.dataset.step === undefined) return;
+            const step = parseInt(el.dataset.step, 10);
+            if (step > target || (step === target && el.classList.contains('user'))) {
+                el.remove();
+            }
+        });
+
+        currentStep = target;
+        saveProgress();
+        updateProgress();
+
+        // まえの質問が 画面にない場合（つづきから再開したとき）は もう一度 出す
+        if (!document.querySelector(`#chatBox .message.bot[data-step="${target}"]`)) {
+            appendMessage(questions[target].label, 'bot', target);
+        }
+
+        // まえの こたえを 入れた状態で 入力欄を出す（直してから 送信できる）
+        setupInputType(formData[questions[target].key]);
+    }
+
+    function finishChat() {
+        document.getElementById('inputArea').style.display = 'none';
+        document.getElementById('status').innerText = "データを 送信中 です...";
+        
+        appendMessage("すばらしいです！ すべての 質問に こたえて いただきました。データを 保存しています...", 'bot');
+
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzV_-i_6RjNTEC_-A0UWlHOI6tFCKvvJwN6Xk9SV-i-_gt98RSA9y1ficsfkv3vm7qY5A/exec";
+
+        // GASへデータを送信
+        fetch(GAS_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => {
+            document.getElementById('status').innerText = "とうろく かんりょうしました！";
+            appendMessage("✅ データを スプレッドシートに じどうで 保存しました！おつかれさまでした。", 'bot');
+            
+            // 入力内容のまとめを表示
+            let summary = "<div style='background:white; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:0.85rem; max-height:200px; overflow-y:auto;'>";
+            summary += "<strong>【送信した内容の確認】</strong><br>";
+            for (let key in formData) {
+                summary += `- ${key}: ${formData[key]}<br>`;
+            }
+            summary += "</div>";
+            appendMessage(summary, 'bot');
+
+            // 送信完了したら一時保存データを削除する
+            localStorage.removeItem('visa_form_data');
+            localStorage.removeItem('visa_form_step');
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            document.getElementById('status').innerText = "エラーが 起きました";
+            appendMessage("⚠️ データの 送信に しっぱい しました。もういちど おためし ください。", 'bot');
+        });
+    }
+</script>
+
+</body>
+</html>
+
+
